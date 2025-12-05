@@ -1,0 +1,472 @@
+/* SecureVault Desktop - Modern Minimalist Theme */
+
+/* ===== ROOT VARIABLES ===== */
+.root {
+    -fx-font-family: "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+    -fx-font-size: 14px;
+    
+    /* Colors */
+    -sv-primary: #2196F3;
+    -sv-primary-dark: #1976D2;
+    -sv-primary-light: #BBDEFB;
+    -sv-background: #F5F5F5;
+    -sv-surface: #FFFFFF;
+    -sv-text-primary: #333333;
+    -sv-text-secondary: #666666;
+    -sv-border: #E0E0E0;
+    -sv-hover: #F0F0F0;
+    -sv-success: #4CAF50;
+    -sv-error: #F44336;
+    -sv-warning: #FF9800;
+}
+
+/* ===== MAIN CONTAINER ===== */
+.main-container {
+    -fx-background-color: -sv-background;
+}
+
+/* ===== HEADER ===== */
+.header {
+    -fx-background-color: -sv-surface;
+    -fx-padding: 12 24;
+    -fx-border-color: transparent transparent -sv-border transparent;
+    -fx-border-width: 0 0 1 0;
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.05), 4, 0, 0, 2);
+}
+
+.header .app-title {
+    -fx-font-size: 20px;
+    -fx-font-weight: bold;
+    -fx-text-fill: -sv-text-primary;
+}
+
+.header .app-icon {
+    -fx-font-size: 24px;
+}
+
+.header .user-status {
+    -fx-font-size: 13px;
+    -fx-text-fill: -sv-text-secondary;
+}
+
+.header .user-icon {
+    -fx-font-size: 16px;
+}
+
+/* ===== SIDEBAR ===== */
+.sidebar {
+    -fx-background-color: -sv-surface;
+    -fx-pref-width: 200;
+    -fx-min-width: 200;
+    -fx-padding: 16 0;
+    -fx-border-color: transparent -sv-border transparent transparent;
+    -fx-border-width: 0 1 0 0;
+}
+
+.sidebar-item {
+    -fx-background-color: transparent;
+    -fx-padding: 12 24;
+    -fx-alignment: CENTER_LEFT;
+    -fx-font-size: 14px;
+    -fx-text-fill: -sv-text-secondary;
+    -fx-cursor: hand;
+    -fx-background-radius: 0;
+    -fx-border-radius: 0;
+    -fx-border-color: transparent;
+    -fx-border-width: 0;
+}
+
+.sidebar-item:hover {
+    -fx-background-color: -sv-hover;
+    -fx-text-fill: -sv-text-primary;
+}
+
+.sidebar-item.active {
+    -fx-background-color: -sv-primary-light;
+    -fx-text-fill: -sv-primary-dark;
+    -fx-font-weight: bold;
+}
+
+.sidebar-item .icon {
+    -fx-font-size: 16px;
+}
+
+/* ===== CONTENT AREA ===== */
+.content-area {
+    -fx-background-color: -sv-background;
+    -fx-padding: 24;
+}
+
+/* ===== CARDS ===== */
+.card {
+    -fx-background-color: -sv-surface;
+    -fx-background-radius: 12;
+    -fx-padding: 20;
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.08), 8, 0, 0, 2);
+}
+
+.card-title {
+    -fx-font-size: 18px;
+    -fx-font-weight: bold;
+    -fx-text-fill: -sv-text-primary;
+    -fx-padding: 0 0 12 0;
+}
+
+/* ===== BUTTONS ===== */
+.button {
+    -fx-background-color: -sv-surface;
+    -fx-text-fill: -sv-text-primary;
+    -fx-padding: 10 20;
+    -fx-background-radius: 8;
+    -fx-border-radius: 8;
+    -fx-border-color: -sv-border;
+    -fx-border-width: 1;
+    -fx-cursor: hand;
+    -fx-font-size: 13px;
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.04), 2, 0, 0, 1);
+}
+
+.button:hover {
+    -fx-background-color: -sv-hover;
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.08), 4, 0, 0, 2);
+}
+
+.button:pressed {
+    -fx-background-color: #E8E8E8;
+    -fx-effect: none;
+}
+
+.button-primary {
+    -fx-background-color: -sv-primary;
+    -fx-text-fill: white;
+    -fx-border-color: transparent;
+}
+
+.button-primary:hover {
+    -fx-background-color: -sv-primary-dark;
+}
+
+.button-primary:pressed {
+    -fx-background-color: #1565C0;
+}
+
+.button-success {
+    -fx-background-color: -sv-success;
+    -fx-text-fill: white;
+    -fx-border-color: transparent;
+}
+
+.button-success:hover {
+    -fx-background-color: #388E3C;
+}
+
+.button-danger {
+    -fx-background-color: -sv-error;
+    -fx-text-fill: white;
+    -fx-border-color: transparent;
+}
+
+.button-danger:hover {
+    -fx-background-color: #D32F2F;
+}
+
+/* ===== TABLE ===== */
+.table-view {
+    -fx-background-color: transparent;
+    -fx-border-color: -sv-border;
+    -fx-border-width: 1;
+    -fx-border-radius: 8;
+    -fx-background-radius: 8;
+}
+
+.table-view .column-header-background {
+    -fx-background-color: -sv-surface;
+    -fx-background-radius: 8 8 0 0;
+}
+
+.table-view .column-header {
+    -fx-background-color: transparent;
+    -fx-border-color: transparent transparent -sv-border transparent;
+    -fx-border-width: 0 0 1 0;
+    -fx-padding: 12 16;
+    -fx-font-weight: bold;
+    -fx-font-size: 13px;
+}
+
+.table-view .column-header .label {
+    -fx-text-fill: -sv-text-secondary;
+    -fx-font-weight: bold;
+}
+
+.table-view .table-row-cell {
+    -fx-background-color: -sv-surface;
+    -fx-border-color: transparent transparent -sv-border transparent;
+    -fx-border-width: 0 0 1 0;
+    -fx-cell-size: 48;
+}
+
+.table-view .table-row-cell:odd {
+    -fx-background-color: #FAFAFA;
+}
+
+.table-view .table-row-cell:hover {
+    -fx-background-color: -sv-hover;
+}
+
+.table-view .table-row-cell:selected {
+    -fx-background-color: -sv-primary-light;
+}
+
+.table-view .table-row-cell:selected .text {
+    -fx-fill: -sv-text-primary;
+}
+
+.table-view .table-cell {
+    -fx-padding: 12 16;
+    -fx-text-fill: -sv-text-primary;
+    -fx-font-size: 13px;
+}
+
+.table-view .placeholder .label {
+    -fx-text-fill: -sv-text-secondary;
+    -fx-font-size: 14px;
+}
+
+/* Hide table corner */
+.table-view .column-header-background .filler {
+    -fx-background-color: transparent;
+}
+
+/* ===== TEXT FIELDS ===== */
+.text-field, .password-field {
+    -fx-background-color: -sv-surface;
+    -fx-border-color: -sv-border;
+    -fx-border-width: 1;
+    -fx-border-radius: 8;
+    -fx-background-radius: 8;
+    -fx-padding: 10 14;
+    -fx-font-size: 14px;
+}
+
+.text-field:focused, .password-field:focused {
+    -fx-border-color: -sv-primary;
+    -fx-border-width: 2;
+    -fx-effect: dropshadow(gaussian, rgba(33,150,243,0.2), 4, 0, 0, 0);
+}
+
+.text-field:hover, .password-field:hover {
+    -fx-border-color: #BDBDBD;
+}
+
+/* ===== TEXT AREA ===== */
+.text-area {
+    -fx-background-color: -sv-surface;
+    -fx-border-color: -sv-border;
+    -fx-border-width: 1;
+    -fx-border-radius: 8;
+    -fx-background-radius: 8;
+    -fx-font-family: "Consolas", "Monaco", monospace;
+    -fx-font-size: 12px;
+}
+
+.text-area .content {
+    -fx-background-color: -sv-surface;
+    -fx-background-radius: 8;
+    -fx-padding: 12;
+}
+
+/* ===== LOG PANEL ===== */
+.log-panel {
+    -fx-background-color: -sv-surface;
+    -fx-border-color: -sv-border transparent transparent transparent;
+    -fx-border-width: 1 0 0 0;
+}
+
+.log-header {
+    -fx-background-color: #FAFAFA;
+    -fx-padding: 8 16;
+    -fx-border-color: transparent transparent -sv-border transparent;
+    -fx-border-width: 0 0 1 0;
+}
+
+.log-title {
+    -fx-font-size: 12px;
+    -fx-font-weight: bold;
+    -fx-text-fill: -sv-text-secondary;
+}
+
+.log-toggle-button {
+    -fx-background-color: transparent;
+    -fx-border-color: transparent;
+    -fx-padding: 4 8;
+    -fx-font-size: 11px;
+    -fx-text-fill: -sv-text-secondary;
+    -fx-cursor: hand;
+}
+
+.log-toggle-button:hover {
+    -fx-text-fill: -sv-primary;
+}
+
+/* ===== DIALOGS ===== */
+.dialog-pane {
+    -fx-background-color: -sv-surface;
+    -fx-padding: 24;
+    -fx-background-radius: 12;
+}
+
+.dialog-pane .header-panel {
+    -fx-background-color: transparent;
+    -fx-padding: 0 0 16 0;
+}
+
+.dialog-pane .header-panel .label {
+    -fx-font-size: 18px;
+    -fx-font-weight: bold;
+    -fx-text-fill: -sv-text-primary;
+}
+
+.dialog-pane .content {
+    -fx-padding: 16 0;
+}
+
+.dialog-pane .button-bar {
+    -fx-padding: 16 0 0 0;
+}
+
+.dialog-pane .button-bar .button {
+    -fx-min-width: 80;
+}
+
+/* Alert types */
+.alert.information .dialog-pane {
+    -fx-border-color: -sv-primary;
+    -fx-border-width: 0 0 0 4;
+}
+
+.alert.warning .dialog-pane {
+    -fx-border-color: -sv-warning;
+    -fx-border-width: 0 0 0 4;
+}
+
+.alert.error .dialog-pane {
+    -fx-border-color: -sv-error;
+    -fx-border-width: 0 0 0 4;
+}
+
+/* ===== LABELS ===== */
+.label {
+    -fx-text-fill: -sv-text-primary;
+}
+
+.label-secondary {
+    -fx-text-fill: -sv-text-secondary;
+    -fx-font-size: 12px;
+}
+
+.label-caption {
+    -fx-text-fill: -sv-text-secondary;
+    -fx-font-size: 11px;
+}
+
+/* ===== SCROLL BARS ===== */
+.scroll-bar {
+    -fx-background-color: transparent;
+}
+
+.scroll-bar .track {
+    -fx-background-color: transparent;
+    -fx-border-color: transparent;
+}
+
+.scroll-bar .thumb {
+    -fx-background-color: #CCCCCC;
+    -fx-background-radius: 4;
+}
+
+.scroll-bar .thumb:hover {
+    -fx-background-color: #BBBBBB;
+}
+
+.scroll-bar .increment-button,
+.scroll-bar .decrement-button {
+    -fx-background-color: transparent;
+    -fx-padding: 0;
+}
+
+.scroll-bar .increment-arrow,
+.scroll-bar .decrement-arrow {
+    -fx-shape: "";
+    -fx-padding: 0;
+}
+
+/* ===== TOOLTIP ===== */
+.tooltip {
+    -fx-background-color: #424242;
+    -fx-text-fill: white;
+    -fx-background-radius: 4;
+    -fx-padding: 8 12;
+    -fx-font-size: 12px;
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.2), 4, 0, 0, 2);
+}
+
+/* ===== PROGRESS INDICATOR ===== */
+.progress-indicator {
+    -fx-progress-color: -sv-primary;
+}
+
+/* ===== SEPARATOR ===== */
+.separator {
+    -fx-border-color: -sv-border;
+    -fx-border-width: 1 0 0 0;
+}
+
+/* ===== ACTION BAR ===== */
+.action-bar {
+    -fx-padding: 0 0 16 0;
+}
+
+.action-bar .button {
+    -fx-margin: 0 8 0 0;
+}
+
+/* ===== EMPTY STATE ===== */
+.empty-state {
+    -fx-padding: 48;
+    -fx-alignment: CENTER;
+}
+
+.empty-state .icon {
+    -fx-font-size: 48px;
+    -fx-text-fill: #CCCCCC;
+}
+
+.empty-state .message {
+    -fx-font-size: 16px;
+    -fx-text-fill: -sv-text-secondary;
+    -fx-padding: 16 0 0 0;
+}
+
+/* ===== STAT CARD ===== */
+.stat-card {
+    -fx-background-color: -sv-surface;
+    -fx-background-radius: 12;
+    -fx-padding: 20;
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.08), 8, 0, 0, 2);
+}
+
+.stat-card .stat-value {
+    -fx-font-size: 28px;
+    -fx-font-weight: bold;
+    -fx-text-fill: -sv-text-primary;
+}
+
+.stat-card .stat-label {
+    -fx-font-size: 12px;
+    -fx-text-fill: -sv-text-secondary;
+}
+
+.stat-card .stat-icon {
+    -fx-font-size: 24px;
+    -fx-text-fill: -sv-primary;
+}
