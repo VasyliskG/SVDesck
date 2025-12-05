@@ -270,6 +270,12 @@ public class DesktopAppFX extends Application {
         if (res.isEmpty() || res.get().isEmpty()) return;
         char[] password = res.get().toCharArray();
 
+        String filename = selected.getFilenameEnc();
+        if (filename == null || filename.length() < 5 || !filename.endsWith(".enc")) {
+            showError("Invalid encrypted filename format", null);
+            return;
+        }
+
         DirectoryChooser chooser = new DirectoryChooser();
         chooser.setTitle("Choose output directory");
         File outDir = chooser.showDialog(null);
@@ -277,7 +283,7 @@ public class DesktopAppFX extends Application {
             showInfo("Output directory not selected");
             return;
         }
-        Path output = outDir.toPath().resolve(selected.getFilenameEnc().substring(0, selected.getFilenameEnc().length() - 4));
+        Path output = outDir.toPath().resolve(filename.substring(0, filename.length() - 4));
 
         Task<Void> task = new Task<>() {
             @Override
