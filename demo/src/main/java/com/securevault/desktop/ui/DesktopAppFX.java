@@ -2,8 +2,6 @@ package com.securevault.desktop.ui;
 
 import com.securevault.desktop.crypto.CryptoEngine;
 import com.securevault.desktop.crypto.KeyDerivation;
-import com.securevault.desktop.network.ApiClient;
-import com.securevault.desktop.storage.ConfigurationManager;
 import com.securevault.desktop.storage.LocalFileStorage;
 import javafx.application.Application;
 import javafx.application.Platform;
@@ -19,13 +17,11 @@ import javafx.scene.layout.*;
 import javafx.stage.DirectoryChooser;
 import javafx.stage.FileChooser;
 import javafx.stage.Stage;
-import javafx.util.Pair;
 
 import javax.crypto.SecretKey;
 import java.io.File;
+import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 
 public class DesktopAppFX extends Application {
@@ -33,18 +29,13 @@ public class DesktopAppFX extends Application {
     // Icons as Unicode symbols
     private static final String ICON_DASHBOARD = "🏠";
     private static final String ICON_FILES = "📁";
-    private static final String ICON_UPLOAD = "⬆️";
-    private static final String ICON_DOWNLOAD = "⬇️";
     private static final String ICON_ENCRYPT = "🔐";
-    private static final String ICON_SETTINGS = "⚙️";
-    private static final String ICON_USER = "👤";
+    private static final String ICON_DECRYPT = "🔓";
+    private static final String ICON_VIEWER = "👁️";
     private static final String ICON_LOCK = "🔒";
-    private static final String ICON_REFRESH = "🔄";
 
     private final ObservableList<FileRecord> files = FXCollections.observableArrayList();
     private final TextArea logArea = new TextArea();
-    private Label statusLabel;
-    private String username = null;
     private VBox logPanel;
     private boolean logPanelExpanded = false;
     private TableView<FileRecord> tableView;
@@ -89,6 +80,9 @@ public class DesktopAppFX extends Application {
         stage.setMinHeight(600);
         stage.setScene(scene);
         stage.show();
+        
+        // Load local encrypted files on startup
+        refreshLocalFiles();
     }
 
     private HBox createHeader() {
@@ -112,19 +106,16 @@ public class DesktopAppFX extends Application {
         Region spacer = new Region();
         HBox.setHgrow(spacer, Priority.ALWAYS);
 
-        // User status (right side)
-        HBox userSection = new HBox(8);
-        userSection.setAlignment(Pos.CENTER_RIGHT);
+        // App description (right side)
+        HBox descSection = new HBox(8);
+        descSection.setAlignment(Pos.CENTER_RIGHT);
         
-        Label userIcon = new Label(ICON_USER);
-        userIcon.getStyleClass().add("user-icon");
+        Label descLabel = new Label("Local File Encryption");
+        descLabel.getStyleClass().add("user-status");
         
-        statusLabel = new Label("Not logged in");
-        statusLabel.getStyleClass().add("user-status");
-        
-        userSection.getChildren().addAll(userIcon, statusLabel);
+        descSection.getChildren().add(descLabel);
 
-        header.getChildren().addAll(logoSection, spacer, userSection);
+        header.getChildren().addAll(logoSection, spacer, descSection);
         return header;
     }
 
@@ -134,61 +125,36 @@ public class DesktopAppFX extends Application {
 
         // Menu items
         Button dashboardBtn = createSidebarItem(ICON_DASHBOARD, "Dashboard");
-        Button filesBtn = createSidebarItem(ICON_FILES, "My Files");
-        Button uploadBtn = createSidebarItem(ICON_UPLOAD, "Upload");
-        Button downloadBtn = createSidebarItem(ICON_DOWNLOAD, "Download");
-        Button encryptBtn = createSidebarItem(ICON_ENCRYPT, "Encrypt/Decrypt");
-        Button settingsBtn = createSidebarItem(ICON_SETTINGS, "Settings");
+        Button encryptBtn = createSidebarItem(ICON_ENCRYPT, "Encrypt File");
+        Button decryptBtn = createSidebarItem(ICON_DECRYPT, "Decrypt File");
+        Button viewerBtn = createSidebarItem(ICON_VIEWER, "File Viewer");
 
         // Set Dashboard as default active
         dashboardBtn.getStyleClass().add("active");
         activeMenuItem = dashboardBtn;
 
-        // Separator before settings
+        // Separator before spacer
         Region spacer = new Region();
         VBox.setVgrow(spacer, Priority.ALWAYS);
 
-        Separator separator = new Separator();
-        separator.setPadding(new Insets(8, 16, 8, 16));
-
-        // Login/Register section
-        VBox authSection = new VBox(4);
-        authSection.setPadding(new Insets(8, 16, 16, 16));
-        
-        Button loginBtn = new Button("Login");
-        loginBtn.getStyleClass().addAll("button", "button-primary");
-        loginBtn.setMaxWidth(Double.MAX_VALUE);
-        loginBtn.setOnAction(e -> showLogin(false));
-        
-        Button registerBtn = new Button("Register");
-        registerBtn.getStyleClass().add("button");
-        registerBtn.setMaxWidth(Double.MAX_VALUE);
-        registerBtn.setOnAction(e -> showLogin(true));
-        
-        authSection.getChildren().addAll(loginBtn, registerBtn);
-
         sidebar.getChildren().addAll(
-            dashboardBtn, filesBtn, uploadBtn, downloadBtn, encryptBtn,
-            spacer, separator, settingsBtn, authSection
+            dashboardBtn, encryptBtn, decryptBtn, viewerBtn,
+            spacer
         );
 
         // Sidebar item actions
         dashboardBtn.setOnAction(e -> handleMenuClick(dashboardBtn, "dashboard"));
-        filesBtn.setOnAction(e -> {
-            handleMenuClick(filesBtn, "files");
-            refreshFiles();
-        });
-        uploadBtn.setOnAction(e -> {
-            handleMenuClick(uploadBtn, "upload");
-            uploadFile();
-        });
-        downloadBtn.setOnAction(e -> {
-            handleMenuClick(downloadBtn, "download");
-            downloadSelected(tableView.getSelectionModel().getSelectedItem());
-        });
         encryptBtn.setOnAction(e -> {
             handleMenuClick(encryptBtn, "encrypt");
-            decryptSelected(tableView.getSelectionModel().getSelectedItem());
+            encryptFile();
+        });
+        decryptBtn.setOnAction(e -> {
+            handleMenuClick(decryptBtn, "decrypt");
+            decryptFile();
+        });
+        viewerBtn.setOnAction(e -> {
+            handleMenuClick(viewerBtn, "viewer");
+            refreshLocalFiles();
         });
 
         return sidebar;
@@ -216,7 +182,7 @@ public class DesktopAppFX extends Application {
         contentArea.setPadding(new Insets(24));
 
         // Page title
-        Label pageTitle = new Label("My Files");
+        Label pageTitle = new Label("File Encryption");
         pageTitle.getStyleClass().add("card-title");
         pageTitle.setStyle("-fx-font-size: 24px;");
 
@@ -225,33 +191,29 @@ public class DesktopAppFX extends Application {
         actionBar.getStyleClass().add("action-bar");
         actionBar.setAlignment(Pos.CENTER_LEFT);
 
-        Button refreshBtn = new Button(ICON_REFRESH + " Refresh");
-        refreshBtn.getStyleClass().addAll("button", "button-primary");
-        refreshBtn.setOnAction(e -> refreshFiles());
+        Button encryptActionBtn = new Button(ICON_ENCRYPT + " Encrypt File");
+        encryptActionBtn.getStyleClass().addAll("button", "button-primary");
+        encryptActionBtn.setOnAction(e -> encryptFile());
 
-        Button uploadActionBtn = new Button(ICON_UPLOAD + " Upload File");
-        uploadActionBtn.getStyleClass().add("button");
-        uploadActionBtn.setOnAction(e -> uploadFile());
+        Button decryptActionBtn = new Button(ICON_DECRYPT + " Decrypt File");
+        decryptActionBtn.getStyleClass().addAll("button", "button-success");
+        decryptActionBtn.setOnAction(e -> decryptFile());
 
-        Button downloadActionBtn = new Button(ICON_DOWNLOAD + " Download");
-        downloadActionBtn.getStyleClass().add("button");
-        downloadActionBtn.setOnAction(e -> downloadSelected(tableView.getSelectionModel().getSelectedItem()));
+        actionBar.getChildren().addAll(encryptActionBtn, decryptActionBtn);
 
-        Button decryptActionBtn = new Button(ICON_ENCRYPT + " Decrypt");
-        decryptActionBtn.getStyleClass().add("button");
-        decryptActionBtn.setOnAction(e -> decryptSelected(tableView.getSelectionModel().getSelectedItem()));
-
-        actionBar.getChildren().addAll(refreshBtn, uploadActionBtn, downloadActionBtn, decryptActionBtn);
-
-        // File table card
+        // File table card (for future file viewer functionality)
         VBox tableCard = new VBox(0);
         tableCard.getStyleClass().add("card");
         VBox.setVgrow(tableCard, Priority.ALWAYS);
 
+        Label tableTitle = new Label(ICON_FILES + " Local Encrypted Files");
+        tableTitle.getStyleClass().add("card-title");
+        tableTitle.setPadding(new Insets(0, 0, 12, 0));
+
         tableView = createFileTable();
         VBox.setVgrow(tableView, Priority.ALWAYS);
         
-        tableCard.getChildren().add(tableView);
+        tableCard.getChildren().addAll(tableTitle, tableView);
 
         contentArea.getChildren().addAll(pageTitle, actionBar, tableCard);
         return contentArea;
@@ -261,16 +223,9 @@ public class DesktopAppFX extends Application {
         TableView<FileRecord> table = new TableView<>(files);
         table.getStyleClass().add("table-view");
 
-        // ID Column
-        TableColumn<FileRecord, Long> idCol = new TableColumn<>("ID");
-        idCol.setCellValueFactory(new PropertyValueFactory<>("id"));
-        idCol.setPrefWidth(60);
-        idCol.setMinWidth(60);
-        idCol.setMaxWidth(80);
-
         // File icon + name column
         TableColumn<FileRecord, String> nameCol = new TableColumn<>("Filename");
-        nameCol.setCellValueFactory(new PropertyValueFactory<>("filenameEnc"));
+        nameCol.setCellValueFactory(new PropertyValueFactory<>("filename"));
         nameCol.setCellFactory(column -> new TableCell<>() {
             @Override
             protected void updateItem(String item, boolean empty) {
@@ -283,7 +238,7 @@ public class DesktopAppFX extends Application {
                 }
             }
         });
-        nameCol.setPrefWidth(300);
+        nameCol.setPrefWidth(350);
 
         // Size column
         TableColumn<FileRecord, Long> sizeCol = new TableColumn<>("Size");
@@ -301,16 +256,18 @@ public class DesktopAppFX extends Application {
         });
         sizeCol.setPrefWidth(100);
 
-        // Uploaded at column
-        TableColumn<FileRecord, String> atCol = new TableColumn<>("Uploaded At");
-        atCol.setCellValueFactory(new PropertyValueFactory<>("uploadedAt"));
-        atCol.setPrefWidth(180);
+        // Path column
+        TableColumn<FileRecord, String> pathCol = new TableColumn<>("Location");
+        pathCol.setCellValueFactory(new PropertyValueFactory<>("path"));
+        pathCol.setPrefWidth(300);
 
-        table.getColumns().addAll(idCol, nameCol, sizeCol, atCol);
+        table.getColumns().add(nameCol);
+        table.getColumns().add(sizeCol);
+        table.getColumns().add(pathCol);
         table.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY);
         
         // Placeholder when no files
-        Label placeholder = new Label("No files yet. Upload a file to get started.");
+        Label placeholder = new Label("No encrypted files found in vault. Encrypt a file to get started.");
         placeholder.setStyle("-fx-text-fill: #666666; -fx-font-size: 14px;");
         table.setPlaceholder(placeholder);
 
@@ -376,227 +333,134 @@ public class DesktopAppFX extends Application {
         return panel;
     }
 
-    private void uploadFile() {
+    private void encryptFile() {
+        // Step 1: Select file to encrypt
         FileChooser chooser = new FileChooser();
-        chooser.setTitle("Select file to upload");
+        chooser.setTitle("Select file to encrypt");
         File selected = chooser.showOpenDialog(null);
         if (selected == null) {
-            showInfo("No file selected");
             return;
         }
 
-        // ask for password to encrypt before upload
+        // Step 2: Password dialog with confirmation
         Dialog<char[]> dialog = new Dialog<>();
         dialog.setTitle(ICON_ENCRYPT + " Encryption Password");
-        ButtonType ok = new ButtonType("Encrypt & Upload", ButtonBar.ButtonData.OK_DONE);
+        ButtonType ok = new ButtonType("Encrypt", ButtonBar.ButtonData.OK_DONE);
         dialog.getDialogPane().getButtonTypes().addAll(ok, ButtonType.CANCEL);
         
-        // Styled content
         VBox content = new VBox(16);
         content.setPadding(new Insets(16, 0, 8, 0));
         
-        Label titleLabel = new Label("Enter password to encrypt file");
+        Label titleLabel = new Label("Enter password to encrypt file: " + selected.getName());
         titleLabel.setStyle("-fx-font-size: 14px; -fx-text-fill: #333333;");
         
-        PasswordField pwd = new PasswordField();
-        pwd.setPromptText("Password to encrypt file");
-        pwd.getStyleClass().add("password-field");
+        Label pwd1Label = new Label("Password");
+        pwd1Label.setStyle("-fx-font-size: 12px; -fx-text-fill: #666666; -fx-font-weight: bold;");
+        PasswordField pwd1 = new PasswordField();
+        pwd1.setPromptText("Enter password");
+        pwd1.getStyleClass().add("password-field");
         
-        content.getChildren().addAll(titleLabel, pwd);
+        Label pwd2Label = new Label("Confirm Password");
+        pwd2Label.setStyle("-fx-font-size: 12px; -fx-text-fill: #666666; -fx-font-weight: bold;");
+        PasswordField pwd2 = new PasswordField();
+        pwd2.setPromptText("Confirm password");
+        pwd2.getStyleClass().add("password-field");
+        
+        content.getChildren().addAll(titleLabel, pwd1Label, pwd1, pwd2Label, pwd2);
         dialog.getDialogPane().setContent(content);
         dialog.getDialogPane().getStyleClass().add("dialog-pane");
         
-        // Style buttons
         dialog.getDialogPane().lookupButton(ok).getStyleClass().addAll("button", "button-primary");
         dialog.getDialogPane().lookupButton(ButtonType.CANCEL).getStyleClass().add("button");
         
-        dialog.setResultConverter(btn -> btn == ok ? pwd.getText().toCharArray() : null);
+        dialog.setResultConverter(btn -> {
+            if (btn == ok) {
+                char[] p1 = pwd1.getText().toCharArray();
+                char[] p2 = pwd2.getText().toCharArray();
+                if (p1.length == 0) {
+                    showError("Password cannot be empty", null);
+                    return null;
+                }
+                if (!java.util.Arrays.equals(p1, p2)) {
+                    showError("Passwords do not match", null);
+                    return null;
+                }
+                return p1;
+            }
+            return null;
+        });
+        
         Optional<char[]> res = dialog.showAndWait();
-        if (res.isEmpty()) return;
+        if (res.isEmpty() || res.get() == null) return;
         char[] password = res.get();
+
+        // Step 3: Select output directory
+        DirectoryChooser dirChooser = new DirectoryChooser();
+        dirChooser.setTitle("Choose output directory for encrypted file");
+        dirChooser.setInitialDirectory(LocalFileStorage.getVaultPath().toFile());
+        File outDir = dirChooser.showDialog(null);
+        if (outDir == null) {
+            showInfo("Output directory not selected");
+            return;
+        }
+
+        Path outputPath = outDir.toPath().resolve(selected.getName() + ".enc");
 
         Task<Void> task = new Task<>() {
             @Override
             protected Void call() throws Exception {
-                String token = ConfigurationManager.loadToken();
-                if (token == null) throw new IllegalStateException("Not logged in");
-
-                // encrypt into vault
-                Path outPath = LocalFileStorage.getVaultPath().resolve(selected.getName() + ".enc");
-                javax.crypto.SecretKey key = KeyDerivation.deriveKeyFromPassword(password);
-                CryptoEngine.encryptFile(selected.toPath(), outPath, key);
-
-                try (ApiClient c = new ApiClient(token)) {
-                    c.uploadFile(outPath);
-                }
+                SecretKey key = KeyDerivation.deriveKeyFromPassword(password);
+                CryptoEngine.encryptFile(selected.toPath(), outputPath, key);
                 return null;
             }
         };
 
         task.setOnSucceeded(e -> {
-            log("Upload successful: " + selected.getName());
-            showInfo("Upload successful");
-            refreshFiles();
+            log("File encrypted: " + outputPath);
+            showInfo("File encrypted successfully!\nSaved to: " + outputPath);
+            refreshLocalFiles();
         });
-        task.setOnFailed(e -> showError("Upload failed", task.getException()));
+        task.setOnFailed(e -> showError("Encryption failed", task.getException()));
         new Thread(task).start();
     }
 
-    private void showLogin(boolean register) {
-        Dialog<Pair<String, String>> dialog = new Dialog<>();
-        dialog.setTitle(register ? ICON_USER + " Register" : ICON_USER + " Login");
-
-        ButtonType okType = new ButtonType(register ? "Register" : "Login", ButtonBar.ButtonData.OK_DONE);
-        dialog.getDialogPane().getButtonTypes().addAll(okType, ButtonType.CANCEL);
-
-        // Styled form
-        VBox box = new VBox(16);
-        box.setPadding(new Insets(16, 0, 8, 0));
-        
-        Label userLabel = new Label("Username");
-        userLabel.setStyle("-fx-font-size: 12px; -fx-text-fill: #666666; -fx-font-weight: bold;");
-        TextField userField = new TextField();
-        userField.setPromptText("Enter your username");
-        userField.getStyleClass().add("text-field");
-        
-        Label passLabel = new Label("Password");
-        passLabel.setStyle("-fx-font-size: 12px; -fx-text-fill: #666666; -fx-font-weight: bold;");
-        PasswordField passField = new PasswordField();
-        passField.setPromptText("Enter your password");
-        passField.getStyleClass().add("password-field");
-        
-        box.getChildren().addAll(userLabel, userField, passLabel, passField);
-        dialog.getDialogPane().setContent(box);
-        dialog.getDialogPane().getStyleClass().add("dialog-pane");
-        
-        // Style buttons
-        dialog.getDialogPane().lookupButton(okType).getStyleClass().addAll("button", "button-primary");
-        dialog.getDialogPane().lookupButton(ButtonType.CANCEL).getStyleClass().add("button");
-
-        dialog.setResultConverter(btn -> {
-            if (btn == okType) return new Pair<>(userField.getText(), passField.getText());
-            return null;
-        });
-
-        Optional<Pair<String, String>> res = dialog.showAndWait();
-        res.ifPresent(pair -> {
-            String user = pair.getKey();
-            String pass = pair.getValue();
-            if (register) {
-                Task<Void> task = new Task<>() {
-                    @Override
-                    protected Void call() throws Exception {
-                        try (ApiClient client = new ApiClient()) {
-                            client.register(user, pass);
-                        }
-                        return null;
-                    }
-                };
-                task.setOnSucceeded(ev -> log("Registration successful - please login."));
-                task.setOnFailed(ev -> showError("Registration failed", task.getException()));
-                new Thread(task).start();
-            } else {
-                Task<Void> task = new Task<>() {
-                    @Override
-                    protected Void call() throws Exception {
-                        try (ApiClient c = new ApiClient()) {
-                            String token = c.login(user, pass);
-                            ConfigurationManager.saveToken(token);
-                            username = user;
-                            Platform.runLater(() -> statusLabel.setText("Logged in as " + user));
-                            log("Login successful.");
-                        }
-                        return null;
-                    }
-                };
-                task.setOnFailed(ev -> showError("Login failed", task.getException()));
-                new Thread(task).start();
-            }
-        });
-    }
-
-    private void refreshFiles() {
-        Task<List<Map<String, Object>>> task = new Task<>() {
-            @Override
-            protected List<Map<String, Object>> call() throws Exception {
-                String token = ConfigurationManager.loadToken();
-                if (token == null) throw new IllegalStateException("Not logged in");
-                try (ApiClient c = new ApiClient(token)) {
-                    return c.listFiles();
-                }
-            }
-        };
-        task.setOnSucceeded(e -> {
-            files.clear();
-            for (Map<String, Object> f : task.getValue()) {
-                files.add(new FileRecord(
-                        Long.parseLong(f.get("id").toString()),
-                        f.get("filenameEnc").toString(),
-                        Long.parseLong(f.getOrDefault("size", "0").toString()),
-                        f.getOrDefault("uploadedAt", "").toString()
-                ));
-            }
-            log("Refreshed file list: " + files.size());
-        });
-        task.setOnFailed(e -> showError("Failed to refresh files", task.getException()));
-        new Thread(task).start();
-    }
-
-    private void downloadSelected(FileRecord selected) {
+    private void decryptFile() {
+        // Step 1: Select encrypted file
+        FileChooser chooser = new FileChooser();
+        chooser.setTitle("Select encrypted (.enc) file");
+        chooser.setInitialDirectory(LocalFileStorage.getVaultPath().toFile());
+        chooser.getExtensionFilters().add(
+            new FileChooser.ExtensionFilter("Encrypted Files", "*.enc")
+        );
+        File selected = chooser.showOpenDialog(null);
         if (selected == null) {
-            showInfo("Select a file first");
-            return;
-        }
-        Task<Path> task = new Task<>() {
-            @Override
-            protected Path call() throws Exception {
-                String token = ConfigurationManager.loadToken();
-                if (token == null) throw new IllegalStateException("Not logged in");
-                try (ApiClient c = new ApiClient(token)) {
-                    return c.downloadFile(selected.getId());
-                }
-            }
-        };
-        task.setOnSucceeded(e -> {
-            Path p = task.getValue();
-            log("Downloaded to: " + p);
-            showInfo("Downloaded to: " + p);
-        });
-        task.setOnFailed(e -> showError("Download failed", task.getException()));
-        new Thread(task).start();
-    }
-
-    private void decryptSelected(FileRecord selected) {
-        if (selected == null) {
-            showInfo("Select a file first");
             return;
         }
 
-        // choose file from vault
-        Path vault = LocalFileStorage.getVaultPath();
-        File encFile = vault.resolve(selected.getFilenameEnc()).toFile();
-        if (!encFile.exists()) {
-            showError("Encrypted file not found in vault", null);
+        if (!selected.getName().endsWith(".enc")) {
+            showError("Selected file is not an .enc file", null);
             return;
         }
 
-        // Styled password dialog for decryption
+        // Step 2: Password dialog
         Dialog<String> pwd = new Dialog<>();
-        pwd.setTitle(ICON_ENCRYPT + " Decryption Password");
+        pwd.setTitle(ICON_DECRYPT + " Decryption Password");
         ButtonType decryptBtn = new ButtonType("Decrypt", ButtonBar.ButtonData.OK_DONE);
         pwd.getDialogPane().getButtonTypes().addAll(decryptBtn, ButtonType.CANCEL);
         
         VBox pwdContent = new VBox(16);
         pwdContent.setPadding(new Insets(16, 0, 8, 0));
         
-        Label pwdLabel = new Label("Enter password used to encrypt the file");
-        pwdLabel.setStyle("-fx-font-size: 14px; -fx-text-fill: #333333;");
+        Label pwdTitleLabel = new Label("Enter password for: " + selected.getName());
+        pwdTitleLabel.setStyle("-fx-font-size: 14px; -fx-text-fill: #333333;");
         
+        Label pwdLabel = new Label("Password");
+        pwdLabel.setStyle("-fx-font-size: 12px; -fx-text-fill: #666666; -fx-font-weight: bold;");
         PasswordField pwdField = new PasswordField();
         pwdField.setPromptText("Decryption password");
         pwdField.getStyleClass().add("password-field");
         
-        pwdContent.getChildren().addAll(pwdLabel, pwdField);
+        pwdContent.getChildren().addAll(pwdTitleLabel, pwdLabel, pwdField);
         pwd.getDialogPane().setContent(pwdContent);
         pwd.getDialogPane().getStyleClass().add("dialog-pane");
         
@@ -605,38 +469,74 @@ public class DesktopAppFX extends Application {
         
         pwd.setResultConverter(btn -> btn == decryptBtn ? pwdField.getText() : null);
         
-        Optional<String> res = pwd.showAndWait();
-        if (res.isEmpty() || res.get().isEmpty()) return;
-        char[] password = res.get().toCharArray();
-
-        String filename = selected.getFilenameEnc();
-        if (filename == null || filename.length() < 5 || !filename.endsWith(".enc")) {
-            showError("Invalid encrypted filename format", null);
+        Optional<String> pwdRes = pwd.showAndWait();
+        if (pwdRes.isEmpty() || pwdRes.get().isEmpty()) {
             return;
         }
+        char[] password = pwdRes.get().toCharArray();
 
-        DirectoryChooser chooser = new DirectoryChooser();
-        chooser.setTitle("Choose output directory");
-        File outDir = chooser.showDialog(null);
+        // Step 3: Select output directory
+        DirectoryChooser dirChooser = new DirectoryChooser();
+        dirChooser.setTitle("Choose output directory for decrypted file");
+        File outDir = dirChooser.showDialog(null);
         if (outDir == null) {
             showInfo("Output directory not selected");
             return;
         }
-        Path output = outDir.toPath().resolve(filename.substring(0, filename.length() - 4));
+
+        // Remove .enc extension for output filename
+        String originalName = selected.getName();
+        if (originalName.endsWith(".enc")) {
+            originalName = originalName.substring(0, originalName.length() - 4);
+        }
+        Path outputPath = outDir.toPath().resolve(originalName);
 
         Task<Void> task = new Task<>() {
             @Override
             protected Void call() throws Exception {
                 SecretKey key = KeyDerivation.deriveKeyFromPassword(password);
-                CryptoEngine.decryptFile(encFile.toPath(), output, key);
+                CryptoEngine.decryptFile(selected.toPath(), outputPath, key);
                 return null;
             }
         };
+
         task.setOnSucceeded(e -> {
-            log("Decrypted to: " + output);
-            showInfo("Decrypted to: " + output);
+            log("File decrypted: " + outputPath);
+            showInfo("File decrypted successfully!\nSaved to: " + outputPath);
         });
         task.setOnFailed(e -> showError("Decryption failed", task.getException()));
+        new Thread(task).start();
+    }
+
+    private void refreshLocalFiles() {
+        Task<Void> task = new Task<>() {
+            @Override
+            protected Void call() throws Exception {
+                Path vaultPath = LocalFileStorage.getVaultPath();
+                Platform.runLater(() -> files.clear());
+                
+                if (Files.exists(vaultPath)) {
+                    Files.list(vaultPath)
+                        .filter(p -> p.toString().endsWith(".enc"))
+                        .forEach(p -> {
+                            try {
+                                long size = Files.size(p);
+                                Platform.runLater(() -> files.add(new FileRecord(
+                                    p.getFileName().toString(),
+                                    size,
+                                    p.getParent().toString()
+                                )));
+                            } catch (Exception e) {
+                                // Skip files we can't read
+                            }
+                        });
+                }
+                return null;
+            }
+        };
+        
+        task.setOnSucceeded(e -> log("Refreshed local files: " + files.size() + " encrypted files found"));
+        task.setOnFailed(e -> log("Failed to refresh files: " + task.getException().getMessage()));
         new Thread(task).start();
     }
 
@@ -669,38 +569,23 @@ public class DesktopAppFX extends Application {
         });
     }
 
-    private void showSuccess(String msg) {
-        Platform.runLater(() -> {
-            Alert a = new Alert(Alert.AlertType.INFORMATION);
-            a.setTitle("✓ Success");
-            a.setHeaderText(null);
-            a.setContentText(msg);
-            a.getDialogPane().getStyleClass().add("dialog-pane");
-            a.getDialogPane().setMinWidth(400);
-            a.showAndWait();
-        });
-    }
-
     public static void main(String[] args) {
         launch(args);
     }
 
     public static class FileRecord {
-        private final Long id;
-        private final String filenameEnc;
+        private final String filename;
         private final Long size;
-        private final String uploadedAt;
+        private final String path;
 
-        public FileRecord(Long id, String filenameEnc, Long size, String uploadedAt) {
-            this.id = id;
-            this.filenameEnc = filenameEnc;
+        public FileRecord(String filename, Long size, String path) {
+            this.filename = filename;
             this.size = size;
-            this.uploadedAt = uploadedAt;
+            this.path = path;
         }
 
-        public Long getId() { return id; }
-        public String getFilenameEnc() { return filenameEnc; }
+        public String getFilename() { return filename; }
         public Long getSize() { return size; }
-        public String getUploadedAt() { return uploadedAt; }
+        public String getPath() { return path; }
     }
 }

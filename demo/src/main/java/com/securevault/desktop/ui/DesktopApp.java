@@ -2,8 +2,6 @@ package com.securevault.desktop.ui;
 
 import com.securevault.desktop.crypto.CryptoEngine;
 import com.securevault.desktop.crypto.KeyDerivation;
-import com.securevault.desktop.network.ApiClient;
-import com.securevault.desktop.storage.ConfigurationManager;
 import com.securevault.desktop.storage.LocalFileStorage;
 
 import javax.crypto.SecretKey;
@@ -12,9 +10,8 @@ import javax.swing.table.DefaultTableModel;
 import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.io.File;
+import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.List;
-import java.util.Map;
 
 public class DesktopApp extends JFrame {
 
@@ -26,10 +23,9 @@ public class DesktopApp extends JFrame {
     };
 
     private final JTextArea logArea = new JTextArea(8, 80);
-    private final JLabel statusLabel = new JLabel("Not logged in");
 
     public DesktopApp() {
-        super("SecureVault Desktop");
+        super("SecureVault Desktop - Local Mode");
         initUI();
     }
 
@@ -39,33 +35,34 @@ public class DesktopApp extends JFrame {
 
         // Top panel - actions
         JPanel topPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
-        JButton loginBtn = new JButton("Login");
-        JButton refreshBtn = new JButton("Refresh Files");
         JButton encryptBtn = new JButton("Encrypt File");
         JButton decryptBtn = new JButton("Decrypt File");
+        JButton refreshBtn = new JButton("Refresh Local Files");
+        JLabel titleLabel = new JLabel("SecureVault - Local File Encryption");
+        titleLabel.setFont(titleLabel.getFont().deriveFont(Font.BOLD, 14f));
 
-        topPanel.add(loginBtn);
-        topPanel.add(refreshBtn);
+        topPanel.add(titleLabel);
+        topPanel.add(Box.createHorizontalStrut(20));
         topPanel.add(encryptBtn);
         topPanel.add(decryptBtn);
-        topPanel.add(statusLabel);
+        topPanel.add(refreshBtn);
 
         add(topPanel, BorderLayout.NORTH);
 
-        // Table for files
-        tableModel.setColumnIdentifiers(new Object[]{"ID", "Encrypted Filename", "Size", "Uploaded At"});
-    JTable table = new JTable(tableModel);
-    table.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
-    table.setFillsViewportHeight(true);
+        // Table for local encrypted files
+        tableModel.setColumnIdentifiers(new Object[]{"Filename", "Size", "Location"});
+        JTable table = new JTable(tableModel);
+        table.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
+        table.setFillsViewportHeight(true);
         JScrollPane tableScroll = new JScrollPane(table);
         add(tableScroll, BorderLayout.CENTER);
 
-    // Log area
-    logArea.setEditable(false);
-    logArea.setLineWrap(true);
-    logArea.setWrapStyleWord(true);
+        // Log area
+        logArea.setEditable(false);
+        logArea.setLineWrap(true);
+        logArea.setWrapStyleWord(true);
         JScrollPane logScroll = new JScrollPane(logArea);
-    logScroll.setPreferredSize(new Dimension(800, 160));
+        logScroll.setPreferredSize(new Dimension(800, 160));
         add(logScroll, BorderLayout.SOUTH);
 
         // Ensure vault directory exists
@@ -76,108 +73,29 @@ public class DesktopApp extends JFrame {
             log("Failed to initialize local vault: " + e.getMessage());
         }
 
-    // Actions
-        loginBtn.addActionListener(this::onLogin);
-        refreshBtn.addActionListener(e -> onRefreshFiles());
+        // Actions
         encryptBtn.addActionListener(this::onEncryptFile);
         decryptBtn.addActionListener(this::onDecryptFile);
+        refreshBtn.addActionListener(e -> refreshLocalFiles());
 
         pack();
         setLocationRelativeTo(null);
         setMinimumSize(new Dimension(800, 600));
-    }
-
-    private void onLogin(ActionEvent e) {
-        JPanel panel = new JPanel(new GridLayout(2, 2));
-        JTextField userField = new JTextField();
-        JPasswordField passField = new JPasswordField();
-        panel.add(new JLabel("Username:"));
-        panel.add(userField);
-        panel.add(new JLabel("Password:"));
-        panel.add(passField);
-
-        int result = JOptionPane.showConfirmDialog(this, panel, "Login", JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
-        if (result == JOptionPane.OK_OPTION) {
-            String username = userField.getText().trim();
-            char[] password = passField.getPassword();
-            if (username.isEmpty() || password.length == 0) {
-                JOptionPane.showMessageDialog(this, "Username and password are required.", "Validation", JOptionPane.WARNING_MESSAGE);
-                return;
-            }
-
-            // perform login in background
-            new SwingWorker<Void, Void>() {
-                @Override
-                protected Void doInBackground() {
-                    try (ApiClient apiClient = new ApiClient()) {
-                        String token = apiClient.login(username, new String(password));
-                        ConfigurationManager.saveToken(token);
-                        SwingUtilities.invokeLater(() -> {
-                            statusLabel.setText("Logged in as " + username);
-                            log("Login successful.");
-                        });
-                    } catch (Exception ex) {
-                        SwingUtilities.invokeLater(() -> {
-                            log("Login failed: " + ex.getMessage());
-                            JOptionPane.showMessageDialog(DesktopApp.this, "Login failed: " + ex.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
-                        });
-                    } finally {
-                        java.util.Arrays.fill(password, '\0');
-                    }
-                    return null;
-                }
-            }.execute();
-        }
-    }
-
-    private void onRefreshFiles() {
-        new SwingWorker<Void, Void>() {
-            private List<Map<String, Object>> files;
-            private Exception ex;
-
-            @Override
-            protected Void doInBackground() {
-                try {
-                    String token = ConfigurationManager.loadToken();
-                    if (token == null) {
-                        throw new IllegalStateException("Not logged in. Please login first.");
-                    }
-                    try (ApiClient apiClient = new ApiClient(token)) {
-                        files = apiClient.listFiles();
-                    }
-                } catch (Exception e) {
-                    ex = e;
-                }
-                return null;
-            }
-
-            @Override
-            protected void done() {
-                if (ex != null) {
-                    log("Failed to refresh files: " + ex.getMessage());
-                    JOptionPane.showMessageDialog(DesktopApp.this, "Failed to refresh files: " + ex.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
-                    return;
-                }
-                tableModel.setRowCount(0);
-                if (files == null || files.isEmpty()) {
-                    log("No files found on server.");
-                } else {
-                    for (Map<String, Object> f : files) {
-                        tableModel.addRow(new Object[]{f.get("id"), f.get("filenameEnc"), f.get("size"), f.get("uploadedAt")});
-                    }
-                    log("Refreshed file list. " + files.size() + " items.");
-                }
-            }
-        }.execute();
+        
+        // Load local files on startup
+        refreshLocalFiles();
     }
 
     private void onEncryptFile(ActionEvent e) {
+        // Step 1: Choose file to encrypt
         JFileChooser chooser = new JFileChooser();
         chooser.setDialogTitle("Choose file to encrypt");
         int res = chooser.showOpenDialog(this);
         if (res != JFileChooser.APPROVE_OPTION) return;
 
         File selected = chooser.getSelectedFile();
+        
+        // Step 2: Password with confirmation
         JPanel panel = new JPanel(new GridLayout(2, 2));
         JPasswordField pwd1 = new JPasswordField();
         JPasswordField pwd2 = new JPasswordField();
@@ -196,6 +114,20 @@ public class DesktopApp extends JFrame {
             return;
         }
 
+        // Step 3: Choose output directory
+        JFileChooser dirChooser = new JFileChooser();
+        dirChooser.setDialogTitle("Choose output directory for encrypted file");
+        dirChooser.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);
+        dirChooser.setCurrentDirectory(LocalFileStorage.getVaultPath().toFile());
+        int dirRes = dirChooser.showSaveDialog(this);
+        if (dirRes != JFileChooser.APPROVE_OPTION) {
+            JOptionPane.showMessageDialog(this, "Output directory not selected.", "Cancelled", JOptionPane.INFORMATION_MESSAGE);
+            return;
+        }
+        
+        File outputDir = dirChooser.getSelectedFile();
+        Path outputPath = outputDir.toPath().resolve(selected.getName() + ".enc");
+
         new SwingWorker<Void, Void>() {
             private Exception ex;
 
@@ -203,12 +135,7 @@ public class DesktopApp extends JFrame {
             protected Void doInBackground() {
                 try {
                     SecretKey key = KeyDerivation.deriveKeyFromPassword(p1);
-                    Path vault = LocalFileStorage.getVaultPath();
-                    if (vault == null) {
-                        throw new IllegalStateException("Local vault path is not initialized.");
-                    }
-                    Path output = vault.resolve(selected.getName() + ".enc");
-                    CryptoEngine.encryptFile(selected.toPath(), output, key);
+                    CryptoEngine.encryptFile(selected.toPath(), outputPath, key);
                 } catch (Exception exx) {
                     ex = exx;
                 } finally {
@@ -224,14 +151,16 @@ public class DesktopApp extends JFrame {
                     log("Encryption failed: " + ex.getMessage());
                     JOptionPane.showMessageDialog(DesktopApp.this, "Encryption failed: " + ex.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
                 } else {
-                    log("File encrypted and saved to vault.");
-                    JOptionPane.showMessageDialog(DesktopApp.this, "File encrypted and saved to vault.", "Success", JOptionPane.INFORMATION_MESSAGE);
+                    log("File encrypted: " + outputPath);
+                    JOptionPane.showMessageDialog(DesktopApp.this, "File encrypted successfully!\nSaved to: " + outputPath, "Success", JOptionPane.INFORMATION_MESSAGE);
+                    refreshLocalFiles();
                 }
             }
         }.execute();
     }
 
     private void onDecryptFile(ActionEvent e) {
+        // Step 1: Choose encrypted file
         Path vaultPath = LocalFileStorage.getVaultPath();
         JFileChooser chooser;
         if (vaultPath != null && java.nio.file.Files.exists(vaultPath)) {
@@ -239,7 +168,7 @@ public class DesktopApp extends JFrame {
         } else {
             chooser = new JFileChooser();
         }
-        chooser.setDialogTitle("Choose encrypted (.enc) file from vault");
+        chooser.setDialogTitle("Choose encrypted (.enc) file");
         int res = chooser.showOpenDialog(this);
         if (res != JFileChooser.APPROVE_OPTION) return;
 
@@ -249,6 +178,7 @@ public class DesktopApp extends JFrame {
             return;
         }
 
+        // Step 2: Enter password
         JPasswordField pwd = new JPasswordField();
         int ok = JOptionPane.showConfirmDialog(this, pwd, "Enter password for decryption", JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
         if (ok != JOptionPane.OK_OPTION) return;
@@ -258,6 +188,20 @@ public class DesktopApp extends JFrame {
             return;
         }
 
+        // Step 3: Choose output directory
+        JFileChooser dirChooser = new JFileChooser();
+        dirChooser.setDialogTitle("Choose output directory for decrypted file");
+        dirChooser.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);
+        int dirRes = dirChooser.showSaveDialog(this);
+        if (dirRes != JFileChooser.APPROVE_OPTION) {
+            JOptionPane.showMessageDialog(this, "Output directory not selected.", "Cancelled", JOptionPane.INFORMATION_MESSAGE);
+            return;
+        }
+        
+        File outputDir = dirChooser.getSelectedFile();
+        String originalName = selected.getName().substring(0, selected.getName().length() - 4);
+        Path outputPath = outputDir.toPath().resolve(originalName);
+
         new SwingWorker<Void, Void>() {
             private Exception ex;
 
@@ -265,9 +209,7 @@ public class DesktopApp extends JFrame {
             protected Void doInBackground() {
                 try {
                     SecretKey key = KeyDerivation.deriveKeyFromPassword(password);
-                    String originalName = selected.getName().substring(0, selected.getName().length() - 4);
-                    Path output = Path.of(originalName).toAbsolutePath();
-                    CryptoEngine.decryptFile(selected.toPath(), output, key);
+                    CryptoEngine.decryptFile(selected.toPath(), outputPath, key);
                 } catch (Exception exx) {
                     ex = exx;
                 } finally {
@@ -282,11 +224,58 @@ public class DesktopApp extends JFrame {
                     log("Decryption failed: " + ex.getMessage());
                     JOptionPane.showMessageDialog(DesktopApp.this, "Decryption failed: " + ex.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
                 } else {
-                    log("File decrypted to current directory.");
-                    JOptionPane.showMessageDialog(DesktopApp.this, "File decrypted to current directory.", "Success", JOptionPane.INFORMATION_MESSAGE);
+                    log("File decrypted: " + outputPath);
+                    JOptionPane.showMessageDialog(DesktopApp.this, "File decrypted successfully!\nSaved to: " + outputPath, "Success", JOptionPane.INFORMATION_MESSAGE);
                 }
             }
         }.execute();
+    }
+
+    private void refreshLocalFiles() {
+        new SwingWorker<Void, Void>() {
+            @Override
+            protected Void doInBackground() {
+                SwingUtilities.invokeLater(() -> tableModel.setRowCount(0));
+                
+                Path vaultPath = LocalFileStorage.getVaultPath();
+                if (vaultPath != null && Files.exists(vaultPath)) {
+                    try {
+                        Files.list(vaultPath)
+                            .filter(p -> p.toString().endsWith(".enc"))
+                            .forEach(p -> {
+                                try {
+                                    long size = Files.size(p);
+                                    String sizeStr = formatFileSize(size);
+                                    SwingUtilities.invokeLater(() -> 
+                                        tableModel.addRow(new Object[]{
+                                            p.getFileName().toString(),
+                                            sizeStr,
+                                            p.getParent().toString()
+                                        })
+                                    );
+                                } catch (Exception ex) {
+                                    // Skip files we can't read
+                                }
+                            });
+                    } catch (Exception ex) {
+                        log("Failed to list files: " + ex.getMessage());
+                    }
+                }
+                return null;
+            }
+
+            @Override
+            protected void done() {
+                log("Refreshed local files: " + tableModel.getRowCount() + " encrypted files found");
+            }
+        }.execute();
+    }
+
+    private String formatFileSize(long bytes) {
+        if (bytes < 1024) return bytes + " B";
+        if (bytes < 1024 * 1024) return String.format("%.1f KB", bytes / 1024.0);
+        if (bytes < 1024 * 1024 * 1024) return String.format("%.1f MB", bytes / (1024.0 * 1024));
+        return String.format("%.1f GB", bytes / (1024.0 * 1024 * 1024));
     }
 
     private void log(String msg) {
