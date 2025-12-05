@@ -125,8 +125,8 @@ public class DesktopAppFX extends Application {
 
         // Menu items
         Button dashboardBtn = createSidebarItem(ICON_DASHBOARD, "Dashboard");
-        Button encryptBtn = createSidebarItem(ICON_ENCRYPT, "Encrypt File");
-        Button decryptBtn = createSidebarItem(ICON_DECRYPT, "Decrypt File");
+        Button encryptBtn = createSidebarItem(ICON_ENCRYPT, "Encrypt");
+        Button decryptBtn = createSidebarItem(ICON_DECRYPT, "Decrypt");
         Button viewerBtn = createSidebarItem(ICON_VIEWER, "File Viewer");
 
         // Set Dashboard as default active
@@ -146,11 +146,11 @@ public class DesktopAppFX extends Application {
         dashboardBtn.setOnAction(e -> handleMenuClick(dashboardBtn, "dashboard"));
         encryptBtn.setOnAction(e -> {
             handleMenuClick(encryptBtn, "encrypt");
-            encryptFile();
+            showEncryptDialog();
         });
         decryptBtn.setOnAction(e -> {
             handleMenuClick(decryptBtn, "decrypt");
-            decryptFile();
+            decryptFileOrDirectory();
         });
         viewerBtn.setOnAction(e -> {
             handleMenuClick(viewerBtn, "viewer");
@@ -191,13 +191,13 @@ public class DesktopAppFX extends Application {
         actionBar.getStyleClass().add("action-bar");
         actionBar.setAlignment(Pos.CENTER_LEFT);
 
-        Button encryptActionBtn = new Button(ICON_ENCRYPT + " Encrypt File");
+        Button encryptActionBtn = new Button(ICON_ENCRYPT + " Encrypt");
         encryptActionBtn.getStyleClass().addAll("button", "button-primary");
-        encryptActionBtn.setOnAction(e -> encryptFile());
+        encryptActionBtn.setOnAction(e -> showEncryptDialog());
 
-        Button decryptActionBtn = new Button(ICON_DECRYPT + " Decrypt File");
+        Button decryptActionBtn = new Button(ICON_DECRYPT + " Decrypt");
         decryptActionBtn.getStyleClass().addAll("button", "button-success");
-        decryptActionBtn.setOnAction(e -> decryptFile());
+        decryptActionBtn.setOnAction(e -> decryptFileOrDirectory());
 
         actionBar.getChildren().addAll(encryptActionBtn, decryptActionBtn);
 
@@ -333,6 +333,31 @@ public class DesktopAppFX extends Application {
         return panel;
     }
 
+    private void showEncryptDialog() {
+        // Show dialog to choose between file or directory
+        Alert choiceDialog = new Alert(Alert.AlertType.CONFIRMATION);
+        choiceDialog.setTitle(ICON_ENCRYPT + " Encrypt");
+        choiceDialog.setHeaderText("What do you want to encrypt?");
+        choiceDialog.setContentText("Choose whether to encrypt a file or a directory.");
+
+        ButtonType fileButton = new ButtonType("File");
+        ButtonType directoryButton = new ButtonType("Directory");
+        ButtonType cancelButton = new ButtonType("Cancel", ButtonBar.ButtonData.CANCEL_CLOSE);
+
+        choiceDialog.getButtonTypes().setAll(fileButton, directoryButton, cancelButton);
+        choiceDialog.getDialogPane().getStyleClass().add("dialog-pane");
+        choiceDialog.getDialogPane().setMinWidth(400);
+
+        Optional<ButtonType> result = choiceDialog.showAndWait();
+        if (result.isPresent()) {
+            if (result.get() == fileButton) {
+                encryptFile();
+            } else if (result.get() == directoryButton) {
+                encryptDirectory();
+            }
+        }
+    }
+
     private void encryptFile() {
         // Step 1: Select file to encrypt
         FileChooser chooser = new FileChooser();
@@ -424,15 +449,123 @@ public class DesktopAppFX extends Application {
         new Thread(task).start();
     }
 
-    private void decryptFile() {
-        // Step 1: Select encrypted file
+    private void encryptDirectory() {
+        // Step 1: Select directory to encrypt
+        DirectoryChooser chooser = new DirectoryChooser();
+        chooser.setTitle("Select directory to encrypt");
+        File selected = chooser.showDialog(null);
+        if (selected == null) {
+            return;
+        }
+
+        // Step 2: Password dialog with confirmation
+        Dialog<char[]> dialog = new Dialog<>();
+        dialog.setTitle(ICON_ENCRYPT + " Encryption Password");
+        ButtonType ok = new ButtonType("Encrypt", ButtonBar.ButtonData.OK_DONE);
+        dialog.getDialogPane().getButtonTypes().addAll(ok, ButtonType.CANCEL);
+        
+        VBox content = new VBox(16);
+        content.setPadding(new Insets(16, 0, 8, 0));
+        
+        Label titleLabel = new Label("Enter password to encrypt directory: " + selected.getName());
+        titleLabel.setStyle("-fx-font-size: 14px; -fx-text-fill: #333333;");
+        
+        Label pwd1Label = new Label("Password");
+        pwd1Label.setStyle("-fx-font-size: 12px; -fx-text-fill: #666666; -fx-font-weight: bold;");
+        PasswordField pwd1 = new PasswordField();
+        pwd1.setPromptText("Enter password");
+        pwd1.getStyleClass().add("password-field");
+        
+        Label pwd2Label = new Label("Confirm Password");
+        pwd2Label.setStyle("-fx-font-size: 12px; -fx-text-fill: #666666; -fx-font-weight: bold;");
+        PasswordField pwd2 = new PasswordField();
+        pwd2.setPromptText("Confirm password");
+        pwd2.getStyleClass().add("password-field");
+        
+        content.getChildren().addAll(titleLabel, pwd1Label, pwd1, pwd2Label, pwd2);
+        dialog.getDialogPane().setContent(content);
+        dialog.getDialogPane().getStyleClass().add("dialog-pane");
+        
+        dialog.getDialogPane().lookupButton(ok).getStyleClass().addAll("button", "button-primary");
+        dialog.getDialogPane().lookupButton(ButtonType.CANCEL).getStyleClass().add("button");
+        
+        dialog.setResultConverter(btn -> {
+            if (btn == ok) {
+                char[] p1 = pwd1.getText().toCharArray();
+                char[] p2 = pwd2.getText().toCharArray();
+                if (p1.length == 0) {
+                    showError("Password cannot be empty", null);
+                    return null;
+                }
+                if (!java.util.Arrays.equals(p1, p2)) {
+                    showError("Passwords do not match", null);
+                    return null;
+                }
+                return p1;
+            }
+            return null;
+        });
+        
+        Optional<char[]> res = dialog.showAndWait();
+        if (res.isEmpty() || res.get() == null) return;
+        char[] password = res.get();
+
+        // Step 3: Select output directory
+        DirectoryChooser dirChooser = new DirectoryChooser();
+        dirChooser.setTitle("Choose output directory for encrypted directory archive");
+        dirChooser.setInitialDirectory(LocalFileStorage.getVaultPath().toFile());
+        File outDir = dirChooser.showDialog(null);
+        if (outDir == null) {
+            showInfo("Output directory not selected");
+            return;
+        }
+
+        Path outputPath = outDir.toPath().resolve(selected.getName() + ".encdir");
+
+        Task<Void> task = new Task<>() {
+            @Override
+            protected Void call() throws Exception {
+                SecretKey key = KeyDerivation.deriveKeyFromPassword(password);
+                CryptoEngine.encryptDirectory(selected.toPath(), outputPath, key);
+                return null;
+            }
+        };
+
+        task.setOnSucceeded(e -> {
+            log("Directory encrypted: " + outputPath);
+            showInfo("Directory encrypted successfully!\nSaved to: " + outputPath);
+            refreshLocalFiles();
+        });
+        task.setOnFailed(e -> showError("Encryption failed", task.getException()));
+        new Thread(task).start();
+    }
+
+    private void decryptFileOrDirectory() {
+        // Step 1: Select encrypted file (either .enc or .encdir)
         FileChooser chooser = new FileChooser();
-        chooser.setTitle("Select encrypted (.enc) file");
+        chooser.setTitle("Select encrypted file (.enc or .encdir)");
         chooser.setInitialDirectory(LocalFileStorage.getVaultPath().toFile());
-        chooser.getExtensionFilters().add(
-            new FileChooser.ExtensionFilter("Encrypted Files", "*.enc")
+        chooser.getExtensionFilters().addAll(
+            new FileChooser.ExtensionFilter("All Encrypted Files", "*.enc", "*.encdir"),
+            new FileChooser.ExtensionFilter("Encrypted Files", "*.enc"),
+            new FileChooser.ExtensionFilter("Encrypted Directories", "*.encdir")
         );
         File selected = chooser.showOpenDialog(null);
+        if (selected == null) {
+            return;
+        }
+
+        String fileName = selected.getName();
+        if (fileName.endsWith(".encdir")) {
+            decryptDirectory(selected);
+        } else if (fileName.endsWith(".enc")) {
+            decryptFile(selected);
+        } else {
+            showError("Selected file is not an .enc or .encdir file", null);
+        }
+    }
+
+    private void decryptFile(File selected) {
         if (selected == null) {
             return;
         }
@@ -508,6 +641,82 @@ public class DesktopAppFX extends Application {
         new Thread(task).start();
     }
 
+    private void decryptDirectory(File selected) {
+        if (selected == null) {
+            return;
+        }
+
+        if (!selected.getName().endsWith(".encdir")) {
+            showError("Selected file is not an .encdir file", null);
+            return;
+        }
+
+        // Step 2: Password dialog
+        Dialog<String> pwd = new Dialog<>();
+        pwd.setTitle(ICON_DECRYPT + " Decryption Password");
+        ButtonType decryptBtn = new ButtonType("Decrypt", ButtonBar.ButtonData.OK_DONE);
+        pwd.getDialogPane().getButtonTypes().addAll(decryptBtn, ButtonType.CANCEL);
+        
+        VBox pwdContent = new VBox(16);
+        pwdContent.setPadding(new Insets(16, 0, 8, 0));
+        
+        Label pwdTitleLabel = new Label("Enter password for: " + selected.getName());
+        pwdTitleLabel.setStyle("-fx-font-size: 14px; -fx-text-fill: #333333;");
+        
+        Label pwdLabel = new Label("Password");
+        pwdLabel.setStyle("-fx-font-size: 12px; -fx-text-fill: #666666; -fx-font-weight: bold;");
+        PasswordField pwdField = new PasswordField();
+        pwdField.setPromptText("Decryption password");
+        pwdField.getStyleClass().add("password-field");
+        
+        pwdContent.getChildren().addAll(pwdTitleLabel, pwdLabel, pwdField);
+        pwd.getDialogPane().setContent(pwdContent);
+        pwd.getDialogPane().getStyleClass().add("dialog-pane");
+        
+        pwd.getDialogPane().lookupButton(decryptBtn).getStyleClass().addAll("button", "button-primary");
+        pwd.getDialogPane().lookupButton(ButtonType.CANCEL).getStyleClass().add("button");
+        
+        pwd.setResultConverter(btn -> btn == decryptBtn ? pwdField.getText() : null);
+        
+        Optional<String> pwdRes = pwd.showAndWait();
+        if (pwdRes.isEmpty() || pwdRes.get().isEmpty()) {
+            return;
+        }
+        char[] password = pwdRes.get().toCharArray();
+
+        // Step 3: Select output directory
+        DirectoryChooser dirChooser = new DirectoryChooser();
+        dirChooser.setTitle("Choose output directory for decrypted directory");
+        File outDir = dirChooser.showDialog(null);
+        if (outDir == null) {
+            showInfo("Output directory not selected");
+            return;
+        }
+
+        // Remove .encdir extension for output directory name
+        String originalName = selected.getName();
+        if (originalName.endsWith(".encdir")) {
+            originalName = originalName.substring(0, originalName.length() - 7);
+        }
+        Path outputPath = outDir.toPath().resolve(originalName);
+
+        Task<Void> task = new Task<>() {
+            @Override
+            protected Void call() throws Exception {
+                SecretKey key = KeyDerivation.deriveKeyFromPassword(password);
+                CryptoEngine.decryptDirectory(selected.toPath(), outputPath, key);
+                return null;
+            }
+        };
+
+        task.setOnSucceeded(e -> {
+            log("Directory decrypted: " + outputPath);
+            showInfo("Directory decrypted successfully!\nSaved to: " + outputPath);
+        });
+        task.setOnFailed(e -> showError("Decryption failed", task.getException()));
+        new Thread(task).start();
+    }
+
     private void refreshLocalFiles() {
         Task<java.util.List<FileRecord>> task = new Task<>() {
             @Override
@@ -517,7 +726,7 @@ public class DesktopAppFX extends Application {
                 
                 if (Files.exists(vaultPath)) {
                     Files.list(vaultPath)
-                        .filter(p -> p.toString().endsWith(".enc"))
+                        .filter(p -> p.toString().endsWith(".enc") || p.toString().endsWith(".encdir"))
                         .forEach(p -> {
                             try {
                                 long size = Files.size(p);

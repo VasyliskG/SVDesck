@@ -35,8 +35,8 @@ public class DesktopApp extends JFrame {
 
         // Top panel - actions
         JPanel topPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
-        JButton encryptBtn = new JButton("Encrypt File");
-        JButton decryptBtn = new JButton("Decrypt File");
+        JButton encryptBtn = new JButton("Encrypt");
+        JButton decryptBtn = new JButton("Decrypt");
         JButton refreshBtn = new JButton("Refresh Local Files");
         JLabel titleLabel = new JLabel("SecureVault - Local File Encryption");
         titleLabel.setFont(titleLabel.getFont().deriveFont(Font.BOLD, 14f));
@@ -74,8 +74,8 @@ public class DesktopApp extends JFrame {
         }
 
         // Actions
-        encryptBtn.addActionListener(this::onEncryptFile);
-        decryptBtn.addActionListener(this::onDecryptFile);
+        encryptBtn.addActionListener(this::onShowEncryptDialog);
+        decryptBtn.addActionListener(this::onDecryptFileOrDirectory);
         refreshBtn.addActionListener(e -> refreshLocalFiles());
 
         pack();
@@ -84,6 +84,25 @@ public class DesktopApp extends JFrame {
         
         // Load local files on startup
         refreshLocalFiles();
+    }
+
+    private void onShowEncryptDialog(ActionEvent e) {
+        // Show dialog to choose between file or directory
+        Object[] options = {"File", "Directory", "Cancel"};
+        int choice = JOptionPane.showOptionDialog(this,
+            "What do you want to encrypt?",
+            "Encrypt",
+            JOptionPane.YES_NO_CANCEL_OPTION,
+            JOptionPane.QUESTION_MESSAGE,
+            null,
+            options,
+            options[0]);
+        
+        if (choice == 0) {
+            onEncryptFile(e);
+        } else if (choice == 1) {
+            onEncryptDirectory(e);
+        }
     }
 
     private void onEncryptFile(ActionEvent e) {
@@ -159,8 +178,82 @@ public class DesktopApp extends JFrame {
         }.execute();
     }
 
-    private void onDecryptFile(ActionEvent e) {
-        // Step 1: Choose encrypted file
+    private void onEncryptDirectory(ActionEvent e) {
+        // Step 1: Choose directory to encrypt
+        JFileChooser chooser = new JFileChooser();
+        chooser.setDialogTitle("Choose directory to encrypt");
+        chooser.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);
+        int res = chooser.showOpenDialog(this);
+        if (res != JFileChooser.APPROVE_OPTION) return;
+
+        File selected = chooser.getSelectedFile();
+        
+        // Step 2: Password with confirmation
+        JPanel panel = new JPanel(new GridLayout(2, 2));
+        JPasswordField pwd1 = new JPasswordField();
+        JPasswordField pwd2 = new JPasswordField();
+        panel.add(new JLabel("Password:"));
+        panel.add(pwd1);
+        panel.add(new JLabel("Confirm password:"));
+        panel.add(pwd2);
+
+        int ok = JOptionPane.showConfirmDialog(this, panel, "Encryption Password", JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
+        if (ok != JOptionPane.OK_OPTION) return;
+
+        char[] p1 = pwd1.getPassword();
+        char[] p2 = pwd2.getPassword();
+        if (p1.length == 0 || !java.util.Arrays.equals(p1, p2)) {
+            JOptionPane.showMessageDialog(this, "Passwords do not match or empty.", "Validation", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+
+        // Step 3: Choose output directory
+        JFileChooser dirChooser = new JFileChooser();
+        dirChooser.setDialogTitle("Choose output directory for encrypted directory archive");
+        dirChooser.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);
+        dirChooser.setCurrentDirectory(LocalFileStorage.getVaultPath().toFile());
+        int dirRes = dirChooser.showSaveDialog(this);
+        if (dirRes != JFileChooser.APPROVE_OPTION) {
+            JOptionPane.showMessageDialog(this, "Output directory not selected.", "Cancelled", JOptionPane.INFORMATION_MESSAGE);
+            return;
+        }
+        
+        File outputDir = dirChooser.getSelectedFile();
+        Path outputPath = outputDir.toPath().resolve(selected.getName() + ".encdir");
+
+        new SwingWorker<Void, Void>() {
+            private Exception ex;
+
+            @Override
+            protected Void doInBackground() {
+                try {
+                    SecretKey key = KeyDerivation.deriveKeyFromPassword(p1);
+                    CryptoEngine.encryptDirectory(selected.toPath(), outputPath, key);
+                } catch (Exception exx) {
+                    ex = exx;
+                } finally {
+                    java.util.Arrays.fill(p1, '\0');
+                    java.util.Arrays.fill(p2, '\0');
+                }
+                return null;
+            }
+
+            @Override
+            protected void done() {
+                if (ex != null) {
+                    log("Encryption failed: " + ex.getMessage());
+                    JOptionPane.showMessageDialog(DesktopApp.this, "Encryption failed: " + ex.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
+                } else {
+                    log("Directory encrypted: " + outputPath);
+                    JOptionPane.showMessageDialog(DesktopApp.this, "Directory encrypted successfully!\nSaved to: " + outputPath, "Success", JOptionPane.INFORMATION_MESSAGE);
+                    refreshLocalFiles();
+                }
+            }
+        }.execute();
+    }
+
+    private void onDecryptFileOrDirectory(ActionEvent e) {
+        // Step 1: Choose encrypted file (either .enc or .encdir)
         Path vaultPath = LocalFileStorage.getVaultPath();
         JFileChooser chooser;
         if (vaultPath != null && java.nio.file.Files.exists(vaultPath)) {
@@ -168,11 +261,33 @@ public class DesktopApp extends JFrame {
         } else {
             chooser = new JFileChooser();
         }
-        chooser.setDialogTitle("Choose encrypted (.enc) file");
+        chooser.setDialogTitle("Choose encrypted (.enc or .encdir) file");
+        chooser.setFileFilter(new javax.swing.filechooser.FileFilter() {
+            @Override
+            public boolean accept(File f) {
+                return f.isDirectory() || f.getName().endsWith(".enc") || f.getName().endsWith(".encdir");
+            }
+            @Override
+            public String getDescription() {
+                return "Encrypted Files (*.enc, *.encdir)";
+            }
+        });
         int res = chooser.showOpenDialog(this);
         if (res != JFileChooser.APPROVE_OPTION) return;
 
         File selected = chooser.getSelectedFile();
+        String fileName = selected.getName();
+        
+        if (fileName.endsWith(".encdir")) {
+            onDecryptDirectory(selected);
+        } else if (fileName.endsWith(".enc")) {
+            onDecryptFile(selected);
+        } else {
+            JOptionPane.showMessageDialog(this, "Selected file is not an .enc or .encdir file.", "Validation", JOptionPane.WARNING_MESSAGE);
+        }
+    }
+
+    private void onDecryptFile(File selected) {
         if (!selected.getName().endsWith(".enc")) {
             JOptionPane.showMessageDialog(this, "Selected file is not an .enc file.", "Validation", JOptionPane.WARNING_MESSAGE);
             return;
@@ -231,6 +346,65 @@ public class DesktopApp extends JFrame {
         }.execute();
     }
 
+    private void onDecryptDirectory(File selected) {
+        if (!selected.getName().endsWith(".encdir")) {
+            JOptionPane.showMessageDialog(this, "Selected file is not an .encdir file.", "Validation", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+
+        // Step 2: Enter password
+        JPasswordField pwd = new JPasswordField();
+        int ok = JOptionPane.showConfirmDialog(this, pwd, "Enter password for decryption", JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
+        if (ok != JOptionPane.OK_OPTION) return;
+        char[] password = pwd.getPassword();
+        if (password.length == 0) {
+            JOptionPane.showMessageDialog(this, "Password cannot be empty.", "Validation", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+
+        // Step 3: Choose output directory
+        JFileChooser dirChooser = new JFileChooser();
+        dirChooser.setDialogTitle("Choose output directory for decrypted directory");
+        dirChooser.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);
+        int dirRes = dirChooser.showSaveDialog(this);
+        if (dirRes != JFileChooser.APPROVE_OPTION) {
+            JOptionPane.showMessageDialog(this, "Output directory not selected.", "Cancelled", JOptionPane.INFORMATION_MESSAGE);
+            return;
+        }
+        
+        File outputDir = dirChooser.getSelectedFile();
+        String originalName = selected.getName().substring(0, selected.getName().length() - 7);
+        Path outputPath = outputDir.toPath().resolve(originalName);
+
+        new SwingWorker<Void, Void>() {
+            private Exception ex;
+
+            @Override
+            protected Void doInBackground() {
+                try {
+                    SecretKey key = KeyDerivation.deriveKeyFromPassword(password);
+                    CryptoEngine.decryptDirectory(selected.toPath(), outputPath, key);
+                } catch (Exception exx) {
+                    ex = exx;
+                } finally {
+                    java.util.Arrays.fill(password, '\0');
+                }
+                return null;
+            }
+
+            @Override
+            protected void done() {
+                if (ex != null) {
+                    log("Decryption failed: " + ex.getMessage());
+                    JOptionPane.showMessageDialog(DesktopApp.this, "Decryption failed: " + ex.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
+                } else {
+                    log("Directory decrypted: " + outputPath);
+                    JOptionPane.showMessageDialog(DesktopApp.this, "Directory decrypted successfully!\nSaved to: " + outputPath, "Success", JOptionPane.INFORMATION_MESSAGE);
+                }
+            }
+        }.execute();
+    }
+
     private void refreshLocalFiles() {
         new SwingWorker<java.util.List<Object[]>, Void>() {
             @Override
@@ -241,7 +415,7 @@ public class DesktopApp extends JFrame {
                 if (vaultPath != null && Files.exists(vaultPath)) {
                     try {
                         Files.list(vaultPath)
-                            .filter(p -> p.toString().endsWith(".enc"))
+                            .filter(p -> p.toString().endsWith(".enc") || p.toString().endsWith(".encdir"))
                             .forEach(p -> {
                                 try {
                                     long size = Files.size(p);
