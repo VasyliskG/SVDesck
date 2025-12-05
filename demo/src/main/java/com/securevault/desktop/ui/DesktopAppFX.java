@@ -34,6 +34,10 @@ public class DesktopAppFX extends Application {
     private static final String ICON_VIEWER = "👁️";
     private static final String ICON_LOCK = "🔒";
 
+    // File extensions
+    private static final String ENCRYPTED_FILE_EXTENSION = ".enc";
+    private static final String ENCRYPTED_DIR_EXTENSION = ".encdir";
+
     private final ObservableList<FileRecord> files = FXCollections.observableArrayList();
     private final TextArea logArea = new TextArea();
     private VBox logPanel;
@@ -429,7 +433,7 @@ public class DesktopAppFX extends Application {
             return;
         }
 
-        Path outputPath = outDir.toPath().resolve(selected.getName() + ".enc");
+        Path outputPath = outDir.toPath().resolve(selected.getName() + ENCRYPTED_FILE_EXTENSION);
 
         Task<Void> task = new Task<>() {
             @Override
@@ -520,7 +524,7 @@ public class DesktopAppFX extends Application {
             return;
         }
 
-        Path outputPath = outDir.toPath().resolve(selected.getName() + ".encdir");
+        Path outputPath = outDir.toPath().resolve(selected.getName() + ENCRYPTED_DIR_EXTENSION);
 
         Task<Void> task = new Task<>() {
             @Override
@@ -543,12 +547,12 @@ public class DesktopAppFX extends Application {
     private void decryptFileOrDirectory() {
         // Step 1: Select encrypted file (either .enc or .encdir)
         FileChooser chooser = new FileChooser();
-        chooser.setTitle("Select encrypted file (.enc or .encdir)");
+        chooser.setTitle("Select encrypted file (" + ENCRYPTED_FILE_EXTENSION + " or " + ENCRYPTED_DIR_EXTENSION + ")");
         chooser.setInitialDirectory(LocalFileStorage.getVaultPath().toFile());
         chooser.getExtensionFilters().addAll(
-            new FileChooser.ExtensionFilter("All Encrypted Files", "*.enc", "*.encdir"),
-            new FileChooser.ExtensionFilter("Encrypted Files", "*.enc"),
-            new FileChooser.ExtensionFilter("Encrypted Directories", "*.encdir")
+            new FileChooser.ExtensionFilter("All Encrypted Files", "*" + ENCRYPTED_FILE_EXTENSION, "*" + ENCRYPTED_DIR_EXTENSION),
+            new FileChooser.ExtensionFilter("Encrypted Files", "*" + ENCRYPTED_FILE_EXTENSION),
+            new FileChooser.ExtensionFilter("Encrypted Directories", "*" + ENCRYPTED_DIR_EXTENSION)
         );
         File selected = chooser.showOpenDialog(null);
         if (selected == null) {
@@ -556,12 +560,12 @@ public class DesktopAppFX extends Application {
         }
 
         String fileName = selected.getName();
-        if (fileName.endsWith(".encdir")) {
+        if (fileName.endsWith(ENCRYPTED_DIR_EXTENSION)) {
             decryptDirectory(selected);
-        } else if (fileName.endsWith(".enc")) {
+        } else if (fileName.endsWith(ENCRYPTED_FILE_EXTENSION)) {
             decryptFile(selected);
         } else {
-            showError("Selected file is not an .enc or .encdir file", null);
+            showError("Selected file is not an " + ENCRYPTED_FILE_EXTENSION + " or " + ENCRYPTED_DIR_EXTENSION + " file", null);
         }
     }
 
@@ -570,8 +574,8 @@ public class DesktopAppFX extends Application {
             return;
         }
 
-        if (!selected.getName().endsWith(".enc")) {
-            showError("Selected file is not an .enc file", null);
+        if (!selected.getName().endsWith(ENCRYPTED_FILE_EXTENSION)) {
+            showError("Selected file is not an " + ENCRYPTED_FILE_EXTENSION + " file", null);
             return;
         }
 
@@ -619,8 +623,8 @@ public class DesktopAppFX extends Application {
 
         // Remove .enc extension for output filename
         String originalName = selected.getName();
-        if (originalName.endsWith(".enc")) {
-            originalName = originalName.substring(0, originalName.length() - 4);
+        if (originalName.endsWith(ENCRYPTED_FILE_EXTENSION)) {
+            originalName = originalName.substring(0, originalName.length() - ENCRYPTED_FILE_EXTENSION.length());
         }
         Path outputPath = outDir.toPath().resolve(originalName);
 
@@ -646,8 +650,8 @@ public class DesktopAppFX extends Application {
             return;
         }
 
-        if (!selected.getName().endsWith(".encdir")) {
-            showError("Selected file is not an .encdir file", null);
+        if (!selected.getName().endsWith(ENCRYPTED_DIR_EXTENSION)) {
+            showError("Selected file is not an " + ENCRYPTED_DIR_EXTENSION + " file", null);
             return;
         }
 
@@ -695,8 +699,8 @@ public class DesktopAppFX extends Application {
 
         // Remove .encdir extension for output directory name
         String originalName = selected.getName();
-        if (originalName.endsWith(".encdir")) {
-            originalName = originalName.substring(0, originalName.length() - 7);
+        if (originalName.endsWith(ENCRYPTED_DIR_EXTENSION)) {
+            originalName = originalName.substring(0, originalName.length() - ENCRYPTED_DIR_EXTENSION.length());
         }
         Path outputPath = outDir.toPath().resolve(originalName);
 
@@ -726,7 +730,7 @@ public class DesktopAppFX extends Application {
                 
                 if (Files.exists(vaultPath)) {
                     Files.list(vaultPath)
-                        .filter(p -> p.toString().endsWith(".enc") || p.toString().endsWith(".encdir"))
+                        .filter(p -> p.toString().endsWith(ENCRYPTED_FILE_EXTENSION) || p.toString().endsWith(ENCRYPTED_DIR_EXTENSION))
                         .forEach(p -> {
                             try {
                                 long size = Files.size(p);

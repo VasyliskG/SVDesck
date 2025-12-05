@@ -162,12 +162,14 @@ public class CryptoEngine {
     }
 
     private static void unzipToDirectory(byte[] zipData, Path outputDir) throws IOException {
+        // Normalize outputDir to ensure consistent path comparison
+        Path normalizedOutputDir = outputDir.toAbsolutePath().normalize();
         try (ZipInputStream zis = new ZipInputStream(new ByteArrayInputStream(zipData))) {
             ZipEntry entry;
             while ((entry = zis.getNextEntry()) != null) {
-                Path targetPath = outputDir.resolve(entry.getName()).normalize();
+                Path targetPath = normalizedOutputDir.resolve(entry.getName()).normalize();
                 // Ensure the target path is within the output directory (prevent path traversal)
-                if (!targetPath.startsWith(outputDir)) {
+                if (!targetPath.startsWith(normalizedOutputDir)) {
                     throw new IOException("Entry is outside of the target directory: " + entry.getName());
                 }
                 if (entry.isDirectory()) {
@@ -175,7 +177,8 @@ public class CryptoEngine {
                 } else {
                     // Ensure parent directories exist
                     Files.createDirectories(targetPath.getParent());
-                    Files.copy(zis, targetPath);
+                    // Use REPLACE_EXISTING to handle overwrites explicitly
+                    Files.copy(zis, targetPath, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
                 }
                 zis.closeEntry();
             }

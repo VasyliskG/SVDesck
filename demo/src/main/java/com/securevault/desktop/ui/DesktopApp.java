@@ -15,6 +15,9 @@ import java.nio.file.Path;
 
 public class DesktopApp extends JFrame {
 
+    private static final String ENCRYPTED_FILE_EXTENSION = ".enc";
+    private static final String ENCRYPTED_DIR_EXTENSION = ".encdir";
+
     private final DefaultTableModel tableModel = new DefaultTableModel() {
         @Override
         public boolean isCellEditable(int row, int column) {
@@ -219,7 +222,7 @@ public class DesktopApp extends JFrame {
         }
         
         File outputDir = dirChooser.getSelectedFile();
-        Path outputPath = outputDir.toPath().resolve(selected.getName() + ".encdir");
+        Path outputPath = outputDir.toPath().resolve(selected.getName() + ENCRYPTED_DIR_EXTENSION);
 
         new SwingWorker<Void, Void>() {
             private Exception ex;
@@ -265,11 +268,11 @@ public class DesktopApp extends JFrame {
         chooser.setFileFilter(new javax.swing.filechooser.FileFilter() {
             @Override
             public boolean accept(File f) {
-                return f.isDirectory() || f.getName().endsWith(".enc") || f.getName().endsWith(".encdir");
+                return f.isDirectory() || f.getName().endsWith(ENCRYPTED_FILE_EXTENSION) || f.getName().endsWith(ENCRYPTED_DIR_EXTENSION);
             }
             @Override
             public String getDescription() {
-                return "Encrypted Files (*.enc, *.encdir)";
+                return "Encrypted Files (*" + ENCRYPTED_FILE_EXTENSION + ", *" + ENCRYPTED_DIR_EXTENSION + ")";
             }
         });
         int res = chooser.showOpenDialog(this);
@@ -278,18 +281,18 @@ public class DesktopApp extends JFrame {
         File selected = chooser.getSelectedFile();
         String fileName = selected.getName();
         
-        if (fileName.endsWith(".encdir")) {
+        if (fileName.endsWith(ENCRYPTED_DIR_EXTENSION)) {
             onDecryptDirectory(selected);
-        } else if (fileName.endsWith(".enc")) {
+        } else if (fileName.endsWith(ENCRYPTED_FILE_EXTENSION)) {
             onDecryptFile(selected);
         } else {
-            JOptionPane.showMessageDialog(this, "Selected file is not an .enc or .encdir file.", "Validation", JOptionPane.WARNING_MESSAGE);
+            JOptionPane.showMessageDialog(this, "Selected file is not an " + ENCRYPTED_FILE_EXTENSION + " or " + ENCRYPTED_DIR_EXTENSION + " file.", "Validation", JOptionPane.WARNING_MESSAGE);
         }
     }
 
     private void onDecryptFile(File selected) {
-        if (!selected.getName().endsWith(".enc")) {
-            JOptionPane.showMessageDialog(this, "Selected file is not an .enc file.", "Validation", JOptionPane.WARNING_MESSAGE);
+        if (!selected.getName().endsWith(ENCRYPTED_FILE_EXTENSION)) {
+            JOptionPane.showMessageDialog(this, "Selected file is not an " + ENCRYPTED_FILE_EXTENSION + " file.", "Validation", JOptionPane.WARNING_MESSAGE);
             return;
         }
 
@@ -314,7 +317,7 @@ public class DesktopApp extends JFrame {
         }
         
         File outputDir = dirChooser.getSelectedFile();
-        String originalName = selected.getName().substring(0, selected.getName().length() - 4);
+        String originalName = selected.getName().substring(0, selected.getName().length() - ENCRYPTED_FILE_EXTENSION.length());
         Path outputPath = outputDir.toPath().resolve(originalName);
 
         new SwingWorker<Void, Void>() {
@@ -347,8 +350,8 @@ public class DesktopApp extends JFrame {
     }
 
     private void onDecryptDirectory(File selected) {
-        if (!selected.getName().endsWith(".encdir")) {
-            JOptionPane.showMessageDialog(this, "Selected file is not an .encdir file.", "Validation", JOptionPane.WARNING_MESSAGE);
+        if (!selected.getName().endsWith(ENCRYPTED_DIR_EXTENSION)) {
+            JOptionPane.showMessageDialog(this, "Selected file is not an " + ENCRYPTED_DIR_EXTENSION + " file.", "Validation", JOptionPane.WARNING_MESSAGE);
             return;
         }
 
@@ -373,7 +376,7 @@ public class DesktopApp extends JFrame {
         }
         
         File outputDir = dirChooser.getSelectedFile();
-        String originalName = selected.getName().substring(0, selected.getName().length() - 7);
+        String originalName = selected.getName().substring(0, selected.getName().length() - ENCRYPTED_DIR_EXTENSION.length());
         Path outputPath = outputDir.toPath().resolve(originalName);
 
         new SwingWorker<Void, Void>() {
@@ -415,7 +418,7 @@ public class DesktopApp extends JFrame {
                 if (vaultPath != null && Files.exists(vaultPath)) {
                     try {
                         Files.list(vaultPath)
-                            .filter(p -> p.toString().endsWith(".enc") || p.toString().endsWith(".encdir"))
+                            .filter(p -> p.toString().endsWith(ENCRYPTED_FILE_EXTENSION) || p.toString().endsWith(ENCRYPTED_DIR_EXTENSION))
                             .forEach(p -> {
                                 try {
                                     long size = Files.size(p);
