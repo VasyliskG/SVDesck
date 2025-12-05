@@ -342,18 +342,6 @@ public class DesktopAppFX extends Application {
 
         Button toggleBtn = new Button("▲ Expand");
         toggleBtn.getStyleClass().add("log-toggle-button");
-        toggleBtn.setOnAction(e -> {
-            logPanelExpanded = !logPanelExpanded;
-            if (logPanelExpanded) {
-                panel.setMaxHeight(200);
-                panel.setPrefHeight(200);
-                toggleBtn.setText("▼ Collapse");
-            } else {
-                panel.setMaxHeight(40);
-                panel.setPrefHeight(40);
-                toggleBtn.setText("▲ Expand");
-            }
-        });
 
         logHeader.getChildren().addAll(logTitle, spacer, toggleBtn);
 
