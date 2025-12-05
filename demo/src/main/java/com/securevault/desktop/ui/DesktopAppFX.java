@@ -509,11 +509,11 @@ public class DesktopAppFX extends Application {
     }
 
     private void refreshLocalFiles() {
-        Task<Void> task = new Task<>() {
+        Task<java.util.List<FileRecord>> task = new Task<>() {
             @Override
-            protected Void call() throws Exception {
+            protected java.util.List<FileRecord> call() throws Exception {
+                java.util.List<FileRecord> localFiles = new java.util.ArrayList<>();
                 Path vaultPath = LocalFileStorage.getVaultPath();
-                Platform.runLater(() -> files.clear());
                 
                 if (Files.exists(vaultPath)) {
                     Files.list(vaultPath)
@@ -521,21 +521,25 @@ public class DesktopAppFX extends Application {
                         .forEach(p -> {
                             try {
                                 long size = Files.size(p);
-                                Platform.runLater(() -> files.add(new FileRecord(
+                                localFiles.add(new FileRecord(
                                     p.getFileName().toString(),
                                     size,
                                     p.getParent().toString()
-                                )));
+                                ));
                             } catch (Exception e) {
                                 // Skip files we can't read
                             }
                         });
                 }
-                return null;
+                return localFiles;
             }
         };
         
-        task.setOnSucceeded(e -> log("Refreshed local files: " + files.size() + " encrypted files found"));
+        task.setOnSucceeded(e -> {
+            files.clear();
+            files.addAll(task.getValue());
+            log("Refreshed local files: " + files.size() + " encrypted files found");
+        });
         task.setOnFailed(e -> log("Failed to refresh files: " + task.getException().getMessage()));
         new Thread(task).start();
     }

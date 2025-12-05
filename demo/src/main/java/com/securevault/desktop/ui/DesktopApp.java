@@ -232,10 +232,10 @@ public class DesktopApp extends JFrame {
     }
 
     private void refreshLocalFiles() {
-        new SwingWorker<Void, Void>() {
+        new SwingWorker<java.util.List<Object[]>, Void>() {
             @Override
-            protected Void doInBackground() {
-                SwingUtilities.invokeLater(() -> tableModel.setRowCount(0));
+            protected java.util.List<Object[]> doInBackground() {
+                java.util.List<Object[]> fileData = new java.util.ArrayList<>();
                 
                 Path vaultPath = LocalFileStorage.getVaultPath();
                 if (vaultPath != null && Files.exists(vaultPath)) {
@@ -246,27 +246,34 @@ public class DesktopApp extends JFrame {
                                 try {
                                     long size = Files.size(p);
                                     String sizeStr = formatFileSize(size);
-                                    SwingUtilities.invokeLater(() -> 
-                                        tableModel.addRow(new Object[]{
-                                            p.getFileName().toString(),
-                                            sizeStr,
-                                            p.getParent().toString()
-                                        })
-                                    );
+                                    fileData.add(new Object[]{
+                                        p.getFileName().toString(),
+                                        sizeStr,
+                                        p.getParent().toString()
+                                    });
                                 } catch (Exception ex) {
                                     // Skip files we can't read
                                 }
                             });
                     } catch (Exception ex) {
-                        log("Failed to list files: " + ex.getMessage());
+                        SwingUtilities.invokeLater(() -> log("Failed to list files: " + ex.getMessage()));
                     }
                 }
-                return null;
+                return fileData;
             }
 
             @Override
             protected void done() {
-                log("Refreshed local files: " + tableModel.getRowCount() + " encrypted files found");
+                try {
+                    java.util.List<Object[]> fileData = get();
+                    tableModel.setRowCount(0);
+                    for (Object[] row : fileData) {
+                        tableModel.addRow(row);
+                    }
+                    log("Refreshed local files: " + tableModel.getRowCount() + " encrypted files found");
+                } catch (Exception ex) {
+                    log("Failed to refresh files: " + ex.getMessage());
+                }
             }
         }.execute();
     }
